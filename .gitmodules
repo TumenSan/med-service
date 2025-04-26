@@ -1,0 +1,3 @@
+[submodule "med-service-back"]
+	path = med-service-back
+	url = https://github.com/TumenSan/med-service-back.git
