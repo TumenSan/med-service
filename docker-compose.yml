@@ -1,17 +1,20 @@
 version: '3.8'
 
 services:
+
+  # RabbitMQ — очередь задач для ML-обработки
   rabbitmq:
     image: rabbitmq:3.12-management
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin      
-      RABBITMQ_DEFAULT_PASS: password   
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  # Redis — кэширование результатов модели
   redis:
     image: redis:7.0
     ports:
@@ -19,6 +22,96 @@ services:
     volumes:
       - redis_data:/data
 
+  # PostgreSQL — БД
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ml_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  # Backend на Spring Boot
+  backend:
+    build:
+      context: ./med-service-back
+      dockerfile: Dockerfile
+    image: kimelet/backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/crowdsourcing_platform
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL-AUTO: update
+      RABBITMQ_HOST: rabbitmq
+      REDIS_HOST: redis
+    depends_on:
+      - db
+      - rabbitmq
+      - redis
+    networks:
+      - backend
+
+  # Frontend на React
+  frontend:
+    build:
+      context: ./med-service-front
+      dockerfile: Dockerfile
+    image: kimelet/frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - frontend
+
+  # ML-worker
+  ml-worker:
+    build:
+      context: ./med-service-ml-model
+      dockerfile: Dockerfile
+    image: kimelet/ml-worker:latest
+    command: ["python", "main.py"]
+    environment:
+      RABBIT_HOST: rabbitmq
+      REDIS_HOST: redis
+      SPRING_ENDPOINT: http://backend:8080/api/results
+      DICOM_ENDPOINT: http://ml-dicom:8000/api/process
+      LAB_ENDPOINT: http://ml-lab:8001/api/process
+      RABBIT_USER: admin
+      RABBIT_PASS: password
+    depends_on:
+      - rabbitmq
+      - redis
+      - backend
+    networks:
+      - backend
+  
+  # ML-model-api
+  ml-model-api:
+    image: kimelet/ml-model:latest
+    command: ["python", "MLService.py"]
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    volumes:
+      - ./med-service-ml-model/models:/models
+    depends_on:
+      - backend
+    networks:
+      - backend
+
+networks:
+  backend:
+  frontend:
+
 volumes:
   rabbitmq_data:
   redis_data:
+  postgres_data:
