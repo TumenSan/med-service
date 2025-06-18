@@ -28,6 +28,18 @@ Deployment Diagram
 ________
 
 
+Package Diagram Server
+![DeploymentDiagram](images/Диаграмма_пакетов_серверная_часть.png)
+
+________
+
+
+Package Diagram ML Orchestrator
+![DeploymentDiagram](images/Диаграмма_пакетов_ML_Orchestrator.png)
+
+________
+
+
 Database scheme
 ![DatabaseDiagram](images/бд_схема.png)
 
